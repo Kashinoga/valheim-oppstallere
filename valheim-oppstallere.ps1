@@ -10,12 +10,12 @@ Function Start-Valheim {
     $valheimProcess = Get-Process valheim_server -ErrorAction SilentlyContinue
 
     if ($valheimProcess) {
-        write-host "Running Valheim Dedicated Server detected. Skipping start of the process."
+        Write-Host "Running Valheim Dedicated Server detected. Skipping start of this process."
     }
     else {
         $env:SteamAppId = "892970"
 
-        white-host "Running Valheim Dedicated Server not detected. Starting the process..."
+        Write-Host "Running Valheim Dedicated Server not detected. Starting the process..."
 
         Start-Process "$($config.forceinstalldir)\valheim_server.exe" -ArgumentList "-nographics -batchmode -name `"$($config.servername)`" -port $($config.port) -world $($config.world) -password $($config.password)"
     }
@@ -23,32 +23,36 @@ Function Start-Valheim {
 
 # Update server
 Function Update-Valheim {
-    $valheimProcess = get-process valheim_server -ErrorAction SilentlyContinue
+    $valheimProcess = Get-Process valheim_server -ErrorAction SilentlyContinue
 
     if ($valheimProcess) {
-        write-host "Running Valheim Dedicated Server detected. Stopping this process..."
+        write-host "Running Valheim Dedicated Server detected. Stopping this process before upating..."
         Stop-Valheim
     }
     else {
-        Write-Host "Updating $($config.servername)"
-        Start-Process "$($config.steamcmd)" -ArgumentList "+login anonymous +force_install_dir $($config.forceinstalldir) +app_update $($config.gameid) validate +exit" -wait
+        Write-Host "Updating the Valheim Dedicated Server software..."
+        Start-Process "$($config.steamcmd)" -ArgumentList "+login anonymous +force_install_dir $($config.forceinstalldir) +app_update $($config.gameid) validate +exit" -Wait
     }
 }
 
-# Stop server
+<#
+    Stop the Valheim server by
+    sending Ctrl + C to the Valheim Dedicated Server window,
+    which allows for a clean shutdown
+#>
 Function Stop-Valheim {
-    #Sends Ctrl+C to the Valheim window, which saves the server first and shuts down cleanly
-    $Process = get-process valheim_server -ErrorAction SilentlyContinue
-    if ($Process) {
-        # be sure to set $ProcessID properly. Sending CTRL_C_EVENT signal can disrupt or terminate a process
-        $ProcessID = $Process.Id
-        $encodedCommand = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes("Add-Type -Names 'w' -Name 'k' -M '[DllImport(""kernel32.dll"")]public static extern bool FreeConsole();[DllImport(""kernel32.dll"")]public static extern bool AttachConsole(uint p);[DllImport(""kernel32.dll"")]public static extern bool SetConsoleCtrlHandler(uint h, bool a);[DllImport(""kernel32.dll"")]public static extern bool GenerateConsoleCtrlEvent(uint e, uint p);public static void SendCtrlC(uint p){FreeConsole();AttachConsole(p);GenerateConsoleCtrlEvent(0, 0);}';[w.k]::SendCtrlC($ProcessID)"))
-        start-process powershell.exe -argument "-nologo -noprofile -executionpolicy bypass -EncodedCommand $encodedCommand"
-        write-host "Waiting for Process $($ProcessID) to stop"
-        Wait-Process -id $ProcessID
+    $valheimProcess = Get-Process valheim_server -ErrorAction SilentlyContinue
+
+    if ($valheimProcess) {
+        $valheimProcessID = $valheimProcess.Id
+        $encodedCommand = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes("Add-Type -Names 'w' -Name 'k' -M '[DllImport(""kernel32.dll"")]public static extern bool FreeConsole();[DllImport(""kernel32.dll"")]public static extern bool AttachConsole(uint p);[DllImport(""kernel32.dll"")]public static extern bool SetConsoleCtrlHandler(uint h, bool a);[DllImport(""kernel32.dll"")]public static extern bool GenerateConsoleCtrlEvent(uint e, uint p);public static void SendCtrlC(uint p){FreeConsole();AttachConsole(p);GenerateConsoleCtrlEvent(0, 0);}';[w.k]::SendCtrlC($valheimProcessID)"))
+
+        Start-Process powershell.exe -Argument "-nologo -noprofile -executionpolicy bypass -EncodedCommand $encodedCommand"
+        Write-Host "Waiting for process ID: $($valheimProcessID), presumably the Valheim Dedicated Server process, to stop..."
+        Wait-Process -ID $valheimProcessID
     }
     else {
-        write-host "no process found, not terminating anything"
+        write-host "A Valheim Dedicated Server running was not detected. The stop process is exiting..."
     }
 }
 
@@ -119,31 +123,37 @@ Function Start-ValheimBackupCleanup {
 $config = Get-Content "C:\SteamCMD\valheim-oppstallere.config" | ConvertFrom-Json
 
 # Testing individual functions
-$valheimLocalVersion = Get-ValheimLocalVersion
-$valheimRemoteVersion = Get-ValheimLatestVersion
+# $valheimLocalVersion = Get-ValheimLocalVersion
+# $valheimRemoteVersion = Get-ValheimLatestVersion
+# Stop-Valheim
+# Update-Valheim
 
 while ($true) {
-    # $valheimRemoteBuild = Get-ValheimLatestVersion
-    # $valheimLocalBuild = Get-ValheimLocalVersion
+    $valheimLocalVersion = Get-ValheimLatestVersion
+    $valheimRemoteVersion = Get-ValheimLocalVersion
     
-    # if ($valheimRemoteBuild -ne $valheimLocalBuild) {
-    #     Write-Host "A new build of Valheim was found."
-    #     Write-Host "Stopping Valheim..."
-    #     Stop-Valheim
-    #     Write-Host "Updating Valheim..."
-    #     Update-Valheim
-    # } else {
-    #     Write-Host "No new build of Valheim was found. The current build is: $valheimRemoteBuild"
-    # }
+    if ($valheimLocalVersion -ne $valheimRemoteVersion) {
+        Write-Host "A new version of the Valheim Dedicated Server was found."
+        Write-Host "Stopping Valheim..."
+
+        Stop-Valheim
+
+        Write-Host "Updating Valheim..."
+
+        Update-Valheim
+    }
+    else {
+        Write-Host "No new version of the Valheim Dedicated Server was found. The local build is: $valheimLocalVersion"
+    }
 
     # if ($config.BackupsEnabled) {
     #     Start-ValheimBackupRegular
     #     Start-ValheimBackupCleanup
     # }
 
-    # # This will start Valheim after patching, and even if it's not patched but crashed for some reason
-    # Start-Valheim
+    # Redundantly start the server
+    Start-Valheim
 
-    # # Will run every 12 hours (43200 seconds)
-    # Start-Sleep -Seconds 43200
+    # Run every 12 hours (43200 seconds)
+    Start-Sleep -Seconds 43200
 }
