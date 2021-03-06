@@ -1,7 +1,8 @@
 <#  
     Oppstallere is a PowerShell script
     derived from tmmjelde's script
-    for automatically updating a Valheim dedicated server
+    for automatically updating Valheim Dedicated Server,
+    known as just Valheim from here on,
     on Windows.
 #>
 
@@ -10,12 +11,12 @@ Function Start-Valheim {
     $valheimProcess = Get-Process valheim_server -ErrorAction SilentlyContinue
 
     if ($valheimProcess) {
-        Write-Host "Running Valheim Dedicated Server detected. Skipping start of this process."
+        Write-Host "A running Valheim instance was detected. Skipping start of Valheim."
     }
     else {
         $env:SteamAppId = "892970"
 
-        Write-Host "Running Valheim Dedicated Server not detected. Starting the process..."
+        Write-Host "A running Valheim instance was not detected. Starting Valheim..."
 
         Start-Process "$($config.forceinstalldir)\valheim_server.exe" -ArgumentList "-nographics -batchmode -name `"$($config.servername)`" -port $($config.port) -world $($config.world) -password $($config.password)"
     }
@@ -26,18 +27,18 @@ Function Update-Valheim {
     $valheimProcess = Get-Process valheim_server -ErrorAction SilentlyContinue
 
     if ($valheimProcess) {
-        write-host "Running Valheim Dedicated Server detected. Stopping this process before upating..."
+        write-host "Running Valheim detected. Stopping this process before upating..."
         Stop-Valheim
     }
     else {
-        Write-Host "Updating the Valheim Dedicated Server software..."
+        Write-Host "Updating Valheim..."
         Start-Process "$($config.steamcmd)" -ArgumentList "+login anonymous +force_install_dir $($config.forceinstalldir) +app_update $($config.gameid) validate +exit" -Wait
     }
 }
 
 <#
-    Stop the Valheim server by
-    sending Ctrl + C to the Valheim Dedicated Server window,
+    Stop Valheim by
+    sending Ctrl + C to the Valheim window,
     which allows for a clean shutdown
 #>
 Function Stop-Valheim {
@@ -52,12 +53,12 @@ Function Stop-Valheim {
         Wait-Process -ID $valheimProcessID
     }
     else {
-        write-host "A Valheim Dedicated Server running was not detected. The stop process is exiting..."
+        write-host "A running Valheim instance was not detected. The stop process is exiting..."
     }
 }
 
 # Get local version
-Function Get-ValheimLocalVersion {
+Function Get-Valheim-Local-Version {
     Write-Host "Getting the local version of Valheim..."
 
     $valheimLocalVersion = (Get-Content "$($config.forceinstalldir)\steamapps\appmanifest_$($config.gameid).acf" | Where-Object { $_ -like "*buildid*" }).Split('"') | Where-Object { $_ -match "^\d+$" }
@@ -66,16 +67,16 @@ Function Get-ValheimLocalVersion {
     Return $valheimLocalVersion
 }
 
-# Get latest remote version
-Function Get-ValheimLatestVersion {
+# Get latest version
+Function Get-Valheim-Latest-Version {
     Write-Host "Getting the latest version of Valheim..."
 
     $steamGameData = Invoke-WebRequest -Uri "https://api.steamcmd.net/v1/info/$($config.gameid)" -UseBasicParsing
     $convertedGameData = $steamGameData.content | ConvertFrom-Json
-    $valheimRemoteVersion = $convertedGameData.data.($config.gameid).depots.branches.public.buildid
+    $valheimLatestVersion = $convertedGameData.data.($config.gameid).depots.branches.public.buildid
 
-    Write-Host "The latest version of Valheim is: $valheimRemoteVersion"
-    Return $valheimRemoteVersion
+    Write-Host "The latest version of Valheim is: $valheimLatestVersion"
+    Return $valheimLatestVersion
 }
 
 # Backup world
@@ -121,7 +122,7 @@ Function Start-ValheimBackupCleanup {
 
 # Main
 $config = Get-Content "C:\SteamCMD\valheim-oppstallere.config" | ConvertFrom-Json
-
+$welcomeMessage = $true
 # Testing individual functions
 # $valheimLocalVersion = Get-ValheimLocalVersion
 # $valheimRemoteVersion = Get-ValheimLatestVersion
@@ -129,11 +130,16 @@ $config = Get-Content "C:\SteamCMD\valheim-oppstallere.config" | ConvertFrom-Jso
 # Update-Valheim
 
 while ($true) {
-    $valheimLocalVersion = Get-ValheimLatestVersion
-    $valheimRemoteVersion = Get-ValheimLocalVersion
-    
-    if ($valheimLocalVersion -ne $valheimRemoteVersion) {
-        Write-Host "A new version of the Valheim Dedicated Server was found."
+    if ($welcomeMessage -eq $true) {
+        Write-Host "Valheim Oppstallere: a tool for updating Valheim Dedicated Server, known as just Valheim from here on, is starting..."
+    }
+
+    $welcomeMessage = $false
+    $valheimLocalVersion = Get-ValheimLocalVersion
+    $valheimLatestVersion = Get-ValheimLatestVersion
+
+    if ($valheimLocalVersion -ne $valheimLatestVersion) {
+        Write-Host "A new version of Valheim was found. An update will begin..."
         Write-Host "Stopping Valheim..."
 
         Stop-Valheim
@@ -143,7 +149,7 @@ while ($true) {
         Update-Valheim
     }
     else {
-        Write-Host "No new version of the Valheim Dedicated Server was found. The local build is: $valheimLocalVersion"
+        Write-Host "No new version of Valheim was found. An update is not required."
     }
 
     # if ($config.BackupsEnabled) {
@@ -155,5 +161,5 @@ while ($true) {
     Start-Valheim
 
     # Run every 12 hours (43200 seconds)
-    Start-Sleep -Seconds 43200
+    Start-Sleep -Seconds 15
 }
