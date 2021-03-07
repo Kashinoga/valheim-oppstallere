@@ -15,10 +15,10 @@ Function Start-Valheim {
     }
     else {
         $env:SteamAppId = "892970"
-
+ 
         Write-Host "A running Valheim instance was not detected. Starting Valheim..."
 
-        Start-Process "$($config.forceinstalldir)\valheim_server.exe" -ArgumentList "-nographics -batchmode -name `"$($config.servername)`" -port $($config.port) -world $($config.world) -password $($config.password)"
+        Start-Process "$($config.forceinstalldir)\valheim_server.exe" -ArgumentList "-nographics -batchmode -name `"$($config.name)`" -port $($config.port) -world $($config.world) -password $($config.password)"
     }
 }
 
@@ -85,14 +85,15 @@ Function Start-ValheimBackupRegular {
     #Should implement support for -saves parameter in config file and link the backup there if specified.
     
     #Check if backup folder exists. If not, create it.
-    if ($config.BackupsFolder) {
-        if (!(test-path $config.Backupsfolder)) { New-Item $config.Backupsfolder -ItemType Directory }
+    if ($config.backupdir) {
+        if (!(test-path $config.backupdir)) { New-Item $config.backupdir -ItemType Directory }
     
         $DBFile = Get-ChildItem "$($env:userprofile)\appdata\LocalLow\IronGate\Valheim\worlds\\$($config.world).db"
         $FWLFile = Get-ChildItem "$($env:userprofile)\appdata\LocalLow\IronGate\Valheim\worlds\$($config.world).fwl"
         $Date = get-date $DBFile.LastWriteTime -format "yyyy-MM-dd_HH-mm"
-        $Destination = "$($config.Backupsfolder)\$($config.world)\$date"
+        $Destination = "$($config.backupdir)\$($config.world)\$date"
         $Destination
+
         if (!(test-path $Destination)) {
             New-Item -Path $Destination -ItemType Directory
             Copy-Item $DBFile -Destination $Destination
@@ -108,11 +109,11 @@ Function Start-ValheimBackupRegular {
 Function Start-ValheimBackupCleanup {
     #This will clean up old backups
     
-    if ($config.BackupsDaysToKeep) {
+    if ($config.backuprentention) {
         #Check if backup folder exists. If not, create it.
-        if (!(test-path $config.Backupsfolder)) { New-Item $config.Backupsfolder -ItemType Directory }
-        $DeleteOlderThan = (Get-Date).AddDays( - $($config.BackupsDaysToKeep))
-        $FolderToClean = "$($config.Backupsfolder)\$($config.world)"
+        if (!(test-path $config.backupdir)) { New-Item $config.backupdir -ItemType Directory }
+        $DeleteOlderThan = (Get-Date).AddDays( - $($config.backuprentention))
+        $FolderToClean = "$($config.backupdir)\$($config.world)"
         Get-ChildItem $FolderToClean | Where-Object { $_.LastWriteTime -lt $DeleteOlderThan } | Remove-Item -Recurse
     }
     Else {
@@ -152,7 +153,7 @@ while ($true) {
         Write-Host "No new version of Valheim was found. An update is not required."
     }
 
-    # if ($config.BackupsEnabled) {
+    # if ($config.backup) {
     #     Start-ValheimBackupRegular
     #     Start-ValheimBackupCleanup
     # }
